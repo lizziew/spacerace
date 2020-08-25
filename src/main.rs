@@ -39,7 +39,7 @@ struct Thing {
 }
 
 struct Scoreboard {
-    score: usize,
+    score: u32,
 }
 
 struct Squirrel {
@@ -321,6 +321,12 @@ fn interactions_system(
 
         *squirrel_translation.0.x_mut() = new_x_position;
         *squirrel_translation.0.y_mut() = new_y_position;
+    }
+
+    for (scoreboard, mut text) in &mut scoreboard_query.iter() {
+        if scoreboard.score == NUM_ACORNS {
+            text.value = "YOU WIN!".to_string();
+        }
     }
 }
 
