@@ -1,14 +1,17 @@
 use bevy::{
     prelude::*,
     render::pass::ClearColor,
+    sprite::collide_aabb::collide,
 };
+
+use rand::distributions::{Distribution, Uniform};
 
 // Colors
 const GRASS: Color = Color::rgb(128./255., 191./255., 128./255.);
 const ACORN: Color = Color::rgb(128./255., 107./255., 3./255.);
 const BUSH: Color = Color::rgb(3./255., 128./255., 78./255.);
 
-// BOUNDS
+// Bounds
 const X_MIN: f32 = -450.0;
 const X_MAX: f32= 450.0;
 const Y_MIN: f32 = -300.0;
@@ -16,14 +19,17 @@ const Y_MAX: f32= 300.0;
 const WALL_THICKNESS: f32 = 10.0;
 const SQUIRREL_THICKNESS: f32 = 48.0;
 
+// Acorns
+const NUM_ACORNS: u32 = 5;
+
 fn main() {
     App::build()
         .add_default_plugins()
         .add_resource(Scoreboard { score: 0 })
         .add_resource(ClearColor(GRASS))
         .add_startup_system(setup.system())
-        .add_system(scoreboard_system.system())
         .add_system(squirrel_system.system())
+        .add_system(acorn_system.system())
         .run();
 }
 
@@ -86,7 +92,7 @@ fn setup(
         .spawn(TextComponents {
             text: Text {
                 font: asset_server.load("assets/fonts/FiraSans-Bold.ttf").unwrap(),
-                value: "Score:".to_string(),
+                value: "Score: 0".to_string(),
                 style: TextStyle {
                     color: ACORN,
                     font_size: 60.0,
@@ -149,12 +155,34 @@ fn setup(
             ..Default::default()
         })
         .with(Collider::Solid);
-}
 
-fn scoreboard_system(mut query: Query<(&Scoreboard, &mut Text)>) {
-    for (scoreboard, mut text) in &mut query.iter() {
-        text.value = format!("Score: {}", scoreboard.score);
-    }
+    // Acorns
+    let acorn_size = Vec2::new(20.0, 20.0);
+    let mut rng = rand::thread_rng();
+    let x_distribution = Uniform::from((X_MIN + WALL_THICKNESS/2.)..(X_MAX - WALL_THICKNESS/2.));
+    let y_distribution = Uniform::from((Y_MIN + WALL_THICKNESS/2.)..(Y_MAX - WALL_THICKNESS/2.));
+    let mut a = NUM_ACORNS;
+    while a > 0 {
+        let x_position = x_distribution.sample(&mut rng);
+        let y_position = y_distribution.sample(&mut rng);
+        let collision = collide(
+            Vec3::new(x_position, y_position, 0.), acorn_size, 
+            Vec3::new(0., 0., 0.), Vec2::new(SQUIRREL_THICKNESS, SQUIRREL_THICKNESS)
+        );
+        if let Some(_) = collision {
+            continue;
+        }
+
+        commands.spawn(SpriteComponents{
+            material: materials.add(asset_server.load("assets/textures/acorn.png").unwrap().into()),
+            sprite: Sprite { size: acorn_size },
+            translation: Translation(Vec3::new(x_position, y_position, 0.)),
+            ..Default::default() 
+        })
+        .with(Collider::Scorable);
+
+        a -= 1;
+    } 
 }
 
 fn squirrel_system(
@@ -206,5 +234,32 @@ fn get_new_distance(
         return current_distance;
     } else {
         return new_distance;
+    }
+}
+
+fn acorn_system(
+    mut commands: Commands, 
+    mut scoreboard_query: Query<(&mut Scoreboard, &mut Text)>, 
+    mut squirrel_query: Query<(&Translation, &Sprite)>,
+    mut collider_query: Query<(Entity, &Collider, &Translation, &Sprite)>
+) {
+    for (squirrel_translation, squirrel_sprite) in &mut squirrel_query.iter() {
+        for (collider_entity, collider, collider_translation, collider_sprite) in &mut collider_query.iter() {
+            let collision = collide(
+                squirrel_translation.0, squirrel_sprite.size, 
+                collider_translation.0, collider_sprite.size
+            );
+
+            if let Some(_) = collision {
+                if let Collider::Scorable = *collider {
+                    for (mut scoreboard, mut text) in &mut scoreboard_query.iter() {
+                        scoreboard.score += 1;
+                        text.value = format!("Score: {}", scoreboard.score);
+                    }
+                    commands.despawn(collider_entity);
+                }
+                break;
+            }
+        }
     }
 }
