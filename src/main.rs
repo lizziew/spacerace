@@ -18,10 +18,15 @@ const Y_MIN: f32 = -300.0;
 const Y_MAX: f32= 300.0;
 const WALL_THICKNESS: f32 = 10.0;
 const SQUIRREL_THICKNESS: f32 = 48.0;
+const DOG_THICKNESS: f32 = 48.0;
 
 // Things 
 const NUM_ACORNS: u32 = 5;
 const NUM_BUSHES: u32 = 20;
+
+// Win/lose
+static mut TRIGGERED: bool = false;
+static mut WIN: bool = false;
 
 fn main() {
     App::build()
@@ -46,9 +51,14 @@ struct Squirrel {
     speed: f32,
 }
 
+struct Dog {
+    speed: f32,
+}
+
 enum Collider {
     Solid,
     Scorable,
+    Enemy,
 }
 
 fn setup(
@@ -67,7 +77,28 @@ fn setup(
             material: materials.add(asset_server.load("assets/textures/squirrel.png").unwrap().into()),
             ..Default::default()
         })
-        .with(Squirrel{speed: 500.0});
+        .with(Squirrel{ speed: 500.0 });
+
+    // Dog
+    commands
+        .spawn(SpriteComponents {
+            material: materials.add(asset_server.load("assets/textures/dog.png").unwrap().into()),
+            translation: Translation::new(300.0, 100.0, 0.0),
+            ..Default::default()
+        })
+        .with(Dog{ speed: 40.0 })
+        .with(Collider::Enemy)
+        .with(Timer::from_seconds(0.05, true));
+
+    commands
+        .spawn(SpriteComponents {
+            material: materials.add(asset_server.load("assets/textures/dog.png").unwrap().into()),
+            translation: Translation::new(-200.0, 200.0, 0.0),
+            ..Default::default()
+        })
+        .with(Dog{ speed: 40.0 })
+        .with(Collider::Enemy)
+        .with(Timer::from_seconds(0.05, true));
     
     // Title
     commands
@@ -256,6 +287,7 @@ fn interactions_system(
     keyboard_input: Res<Input<KeyCode>>, 
     mut scoreboard_query: Query<(&mut Scoreboard, &mut Text)>, 
     mut squirrel_query: Query<(&Squirrel, &mut Translation, &Sprite)>,
+    mut dog_query: Query<(&mut Timer, &Dog, &mut Translation, &Sprite)>,
     mut collider_query: Query<(Entity, &Collider, &Translation, &Sprite)>
 ) {
     let mut existing_things: Vec<Thing> = vec![];
@@ -270,6 +302,43 @@ fn interactions_system(
         }
     }
 
+    let mut rng = rand::thread_rng();
+    let direction_distribution = Uniform::from(-1.0..1.0);
+    for (timer, dog, mut dog_translation, dog_sprite) in &mut dog_query.iter() {
+        if timer.finished {
+            let mut new_x_position;
+            let mut new_y_position;
+            let mut tries = 5;
+            while tries > 0 {
+                let x_direction = direction_distribution.sample(&mut rng);
+                new_x_position = get_new_dog_position(
+                    *dog_translation.0.x_mut(),
+                    x_direction,
+                    dog.speed,
+                    X_MIN,
+                    X_MAX
+                );
+
+                let y_direction = direction_distribution.sample(&mut rng);
+                new_y_position = get_new_dog_position(
+                    *dog_translation.0.y_mut(),
+                    y_direction,
+                    dog.speed,
+                    Y_MIN,
+                    Y_MAX
+                );
+
+                if !collides_with_existing_entity(Vec3::new(new_x_position, new_y_position, 0.), dog_sprite.size, &existing_things) {
+                    *dog_translation.0.x_mut() = new_x_position;
+                    *dog_translation.0.y_mut() = new_y_position;
+                    break;
+                } 
+
+                tries -= 1;
+            }
+        }
+    }
+
     for (squirrel, mut squirrel_translation, squirrel_sprite) in &mut squirrel_query.iter() {
         for (collider_entity, collider, collider_translation, collider_sprite) in &mut collider_query.iter() {
             let collision = collide(
@@ -280,11 +349,27 @@ fn interactions_system(
             if let Some(_) = collision {
                 if let Collider::Scorable = *collider {
                     for (mut scoreboard, mut text) in &mut scoreboard_query.iter() {
-                        scoreboard.score += 1;
-                        text.value = format!("Score: {}", scoreboard.score);
+                        unsafe {
+                            if !TRIGGERED {
+                                scoreboard.score += 1;
+                                text.value = format!("Score: {}", scoreboard.score);
+                            }
+                        }
                     }
                     commands.despawn(collider_entity);
-                }            
+                }          
+                
+                if let Collider::Enemy = *collider {
+                    for (_, mut text) in &mut scoreboard_query.iter() {
+                        unsafe {
+                            if !TRIGGERED {
+                                text.value = "YOU LOSE :(".to_string();
+                                TRIGGERED = true;
+                                WIN = false;
+                            }
+                        }
+                    }
+                }
                 break;
             }
         }
@@ -296,7 +381,7 @@ fn interactions_system(
         if keyboard_input.pressed(KeyCode::Right) {
             x_direction += 1.0;
         }
-        let new_x_position = get_new_position(
+        let new_x_position = get_new_squirrel_position(
             *squirrel_translation.0.x_mut(),
             time.delta_seconds, x_direction, squirrel.speed,
             X_MIN, X_MAX
@@ -309,7 +394,7 @@ fn interactions_system(
         if keyboard_input.pressed(KeyCode::Up) {
             y_direction += 1.0;
         }
-        let new_y_position = get_new_position(
+        let new_y_position = get_new_squirrel_position(
             *squirrel_translation.0.y_mut(),
             time.delta_seconds, y_direction, squirrel.speed,
             Y_MIN, Y_MAX
@@ -325,12 +410,36 @@ fn interactions_system(
 
     for (scoreboard, mut text) in &mut scoreboard_query.iter() {
         if scoreboard.score == NUM_ACORNS {
-            text.value = "YOU WIN!".to_string();
+            unsafe {
+                if !TRIGGERED {
+                    text.value = "YOU WIN!".to_string();
+                    TRIGGERED = true;
+                    WIN = true;
+                }
+            }
         }
     }
 }
 
-fn get_new_position(
+fn get_new_dog_position(
+    current_position: f32,
+    direction: f32, 
+    speed: f32,
+    min_bound: f32,
+    max_bound: f32,
+) -> f32 {
+    let new_position = current_position + direction * speed;
+
+    let thickness = DOG_THICKNESS + WALL_THICKNESS;
+    if new_position >= (max_bound - thickness/2.) || new_position <= (min_bound + thickness/2.) {
+        return current_position;
+    } else {
+        return new_position;
+    }
+}
+
+
+fn get_new_squirrel_position(
     current_position: f32,
     delta_time: f32, 
     direction: f32, 
