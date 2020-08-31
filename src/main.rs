@@ -3,7 +3,7 @@ use bevy::{
     render::pass::ClearColor,
     sprite::collide_aabb::collide,
 };
-
+use bevy_window::WindowMode;
 use rand::distributions::{Distribution, Uniform};
 
 // Colors
@@ -12,24 +12,36 @@ const ACORN: Color = Color::rgb(128./255., 107./255., 3./255.);
 const BUSH: Color = Color::rgb(3./255., 128./255., 78./255.);
 
 // Bounds
-const X_MIN: f32 = -450.0;
-const X_MAX: f32= 450.0;
-const Y_MIN: f32 = -300.0;
-const Y_MAX: f32= 300.0;
-const WALL_THICKNESS: f32 = 10.0;
-const SQUIRREL_THICKNESS: f32 = 48.0;
+const WIDTH: f32 = 2000.;
+const HEIGHT: f32 = 1200.;
+const X_MIN: f32 = -WIDTH/2.;
+const X_MAX: f32= WIDTH/2.;
+const Y_MIN: f32 = -HEIGHT/2.;
+const Y_MAX: f32= HEIGHT/2.;
+const WALL_THICKNESS: f32 = 100.0;
+const SQUIRREL_SIZE: f32 = 48.0;
 const DOG_THICKNESS: f32 = 48.0;
+const ACORN_SIZE: f32 = 20.0;
+const HOME_WIDTH: f32 = 80.;
+const HOME_HEIGHT: f32 = 100.;
 
 // Things 
 const NUM_ACORNS: u32 = 5;
-const NUM_BUSHES: u32 = 20;
 
 // Win/lose
 static mut TRIGGERED: bool = false;
-static mut WIN: bool = false;
 
 fn main() {
     App::build()
+        .add_resource(WindowDescriptor {
+            title: "acorn".to_string(),
+            width: WIDTH as u32 + WALL_THICKNESS as u32,
+            height: HEIGHT as u32 + WALL_THICKNESS as u32,
+            vsync: true,
+            resizable: false,
+            mode: WindowMode::Windowed,
+            ..Default::default()
+        })
         .add_default_plugins()
         .add_resource(Scoreboard { score: 0 })
         .add_resource(ClearColor(GRASS))
@@ -58,7 +70,7 @@ struct Dog {
 enum Collider {
     Solid,
     Scorable,
-    Enemy,
+    Home,
 }
 
 fn setup(
@@ -75,6 +87,7 @@ fn setup(
     commands
         .spawn(SpriteComponents {
             material: materials.add(asset_server.load("assets/textures/squirrel.png").unwrap().into()),
+            translation: Translation::new(X_MIN + WALL_THICKNESS + SQUIRREL_SIZE, HOME_HEIGHT, 0.0),
             ..Default::default()
         })
         .with(Squirrel{ speed: 500.0 });
@@ -83,22 +96,19 @@ fn setup(
     commands
         .spawn(SpriteComponents {
             material: materials.add(asset_server.load("assets/textures/dog.png").unwrap().into()),
-            translation: Translation::new(300.0, 100.0, 0.0),
+            translation: Translation::new(X_MAX - WALL_THICKNESS - DOG_THICKNESS, 0.0, 0.0),
             ..Default::default()
         })
-        .with(Dog{ speed: 40.0 })
-        .with(Collider::Enemy)
-        .with(Timer::from_seconds(0.05, true));
+        .with(Dog{ speed: 500.0 });
 
+    // Squirrel home
     commands
         .spawn(SpriteComponents {
-            material: materials.add(asset_server.load("assets/textures/dog.png").unwrap().into()),
-            translation: Translation::new(-200.0, 200.0, 0.0),
+            material: materials.add(asset_server.load("assets/textures/home.png").unwrap().into()),
+            translation: Translation::new(X_MIN + WALL_THICKNESS + HOME_WIDTH, 0.0, 0.0),
             ..Default::default()
         })
-        .with(Dog{ speed: 40.0 })
-        .with(Collider::Enemy)
-        .with(Timer::from_seconds(0.05, true));
+        .with(Collider::Home);
     
     // Title
     commands
@@ -108,7 +118,7 @@ fn setup(
                 value: "ACORN".to_string(),
                 style: TextStyle {
                     color: ACORN,
-                    font_size: 60.0,
+                    font_size: 50.0,
                 },
             },
             style: Style {
@@ -131,7 +141,7 @@ fn setup(
                 value: "Score: 0".to_string(),
                 style: TextStyle {
                     color: ACORN,
-                    font_size: 60.0,
+                    font_size: 50.0,
                 },
             },
             style: Style {
@@ -149,119 +159,94 @@ fn setup(
 
     // Walls
     let wall_material = materials.add(BUSH.into());
-    let bounds:Vec2 = Vec2::new(900.0, 600.0);
     commands
-        // left
-        .spawn(SpriteComponents {
-            material: wall_material,
-            translation: Translation(Vec3::new(-bounds.x() / 2.0, 0.0, 0.0)),
-            sprite: Sprite {
-                size: Vec2::new(WALL_THICKNESS, bounds.y() + WALL_THICKNESS),
-            },
-            ..Default::default()
-        })
-        .with(Collider::Solid)
-        // right
-        .spawn(SpriteComponents {
-            material: wall_material,
-            translation: Translation(Vec3::new(bounds.x() / 2.0, 0.0, 0.0)),
-            sprite: Sprite {
-                size: Vec2::new(WALL_THICKNESS, bounds.y() + WALL_THICKNESS),
-            },
-            ..Default::default()
-        })
-        .with(Collider::Solid)
-        // bottom
-        .spawn(SpriteComponents {
-            material: wall_material,
-            translation: Translation(Vec3::new(0.0, -bounds.y() / 2.0, 0.0)),
-            sprite: Sprite {
-                size: Vec2::new(bounds.x() + WALL_THICKNESS, WALL_THICKNESS),
-            },
-            ..Default::default()
-        })
-        .with(Collider::Solid)
-        // top
-        .spawn(SpriteComponents {
-            material: wall_material,
-            translation: Translation(Vec3::new(0.0, bounds.y() / 2.0, 0.0)),
-            sprite: Sprite {
-                size: Vec2::new(bounds.x() + WALL_THICKNESS, WALL_THICKNESS),
-            },
-            ..Default::default()
-        })
-        .with(Collider::Solid);
+    // left
+    .spawn(SpriteComponents {
+        material: wall_material,
+        translation: Translation(Vec3::new(X_MIN, 0.0, 0.0)),
+        sprite: Sprite {
+            size: Vec2::new(WALL_THICKNESS, HEIGHT + WALL_THICKNESS),
+        },
+        ..Default::default()
+    })
+    .with(Collider::Solid)
+    // right
+    .spawn(SpriteComponents {
+        material: wall_material,
+        translation: Translation(Vec3::new(X_MAX, 0.0, 0.0)),
+        sprite: Sprite {
+            size: Vec2::new(WALL_THICKNESS, HEIGHT + WALL_THICKNESS),
+        },
+        ..Default::default()
+    })
+    .with(Collider::Solid)
+    // bottom
+    .spawn(SpriteComponents {
+        material: wall_material,
+        translation: Translation(Vec3::new(0.0, Y_MIN, 0.0)),
+        sprite: Sprite {
+            size: Vec2::new(WIDTH + WALL_THICKNESS, WALL_THICKNESS),
+        },
+        ..Default::default()
+    })
+    .with(Collider::Solid)
+    // top
+    .spawn(SpriteComponents {
+        material: wall_material,
+        translation: Translation(Vec3::new(0.0, Y_MAX, 0.0)),
+        sprite: Sprite {
+            size: Vec2::new(WIDTH + WALL_THICKNESS, WALL_THICKNESS),
+        },
+        ..Default::default()
+    })
+    .with(Collider::Solid);
 
-    // Use these to generate random positions
-    let mut rng = rand::thread_rng(); 
-    let x_distribution = Uniform::from((X_MIN + 20.)..(X_MAX - 20.));
-    let y_distribution = Uniform::from((Y_MIN + 20.)..(Y_MAX - 20.));
-    let mut existing_things: Vec<Thing> = vec![
-        Thing {
-            position: Vec3::new(0., 0., 0.),
-            size: Vec2::new(SQUIRREL_THICKNESS, SQUIRREL_THICKNESS)
-        }
-    ];
-
-    // Bushes
-    let bush_size = Vec2::new(45., 30.);
-    let mut b = NUM_BUSHES;
-    while b > 0 {
-        let x_position = x_distribution.sample(&mut rng);
-        let y_position = y_distribution.sample(&mut rng);
-        let bush_position = Vec3::new(x_position, y_position, 0.);
-
-        if collides_with_existing_entity(bush_position, bush_size, &existing_things) {
-            continue;
-        }
-
-        commands.spawn(SpriteComponents{
-            material: materials.add(asset_server.load("assets/textures/bush.png").unwrap().into()),
-            sprite: Sprite { size: bush_size },
-            translation: Translation(bush_position),
-            ..Default::default() 
-        })
-        .with(Collider::Solid);
-
-        existing_things.push(
-            Thing {
-                position: bush_position,
-                size: bush_size
+    // Barriers
+    let mut rng = rand::thread_rng();
+    let barrier_distribution = Uniform::from(1..3); 
+    let number_of_walls = (WIDTH / WALL_THICKNESS) as u32 / 2 - 2;
+    let start = X_MIN + 2. * WALL_THICKNESS;
+    for wall_index in 0..number_of_walls {
+        let x = start + (wall_index as f32 * 2. + 1.) * WALL_THICKNESS;
+        let mut y = Y_MIN + WALL_THICKNESS / 2.;
+        while y < Y_MAX {
+            if barrier_distribution.sample(&mut rng) == 1 {
+                commands
+                    .spawn(SpriteComponents {
+                        material: wall_material,
+                        translation: Translation(Vec3::new(x, y, 0.0)),
+                        sprite: Sprite {
+                            size: Vec2::new(WALL_THICKNESS, WALL_THICKNESS),
+                        },
+                        ..Default::default()
+                    })
+                    .with(Collider::Solid);
             }
-        );
 
-        b -= 1;
+            y += WALL_THICKNESS;
+        }
     }
 
     // Acorns
-    let acorn_size = Vec2::new(20.0, 20.0);
-    let mut a = NUM_ACORNS;
-    while a > 0 {
-        let x_position = x_distribution.sample(&mut rng);
-        let y_position = y_distribution.sample(&mut rng);
-        let acorn_position = Vec3::new(x_position, y_position, 0.);
-
-        if collides_with_existing_entity(acorn_position, acorn_size, &existing_things) {
-            continue;
-        }
-
-        commands.spawn(SpriteComponents{
-            material: materials.add(asset_server.load("assets/textures/acorn.png").unwrap().into()),
-            sprite: Sprite { size: acorn_size },
-            translation: Translation(acorn_position),
-            ..Default::default() 
-        })
-        .with(Collider::Scorable);
-
-        existing_things.push(
-            Thing {
-                position: acorn_position,
-                size: acorn_size
+    let acorn_distribution = Uniform::from(1..5);
+    let acorn_columns = number_of_walls - 1;
+    for acorn_index in 0..acorn_columns {
+        let x = start + (acorn_index as f32 * 2. + 2.) * WALL_THICKNESS;
+        let mut y = Y_MIN + WALL_THICKNESS;
+        while y < Y_MAX - WALL_THICKNESS {
+            if acorn_distribution.sample(&mut rng) == 1 {
+                commands.spawn(SpriteComponents{
+                    material: materials.add(asset_server.load("assets/textures/acorn.png").unwrap().into()),
+                    translation: Translation(Vec3::new(x, y, 0.0)),
+                    sprite: Sprite { size: Vec2::new(ACORN_SIZE, ACORN_SIZE) },
+                    ..Default::default() 
+                })
+                .with(Collider::Scorable);
             }
-        );
 
-        a -= 1;
-    } 
+            y += WALL_THICKNESS;
+        }
+    }
 }
 
 fn collides_with_existing_entity(
@@ -287,8 +272,8 @@ fn interactions_system(
     keyboard_input: Res<Input<KeyCode>>, 
     mut scoreboard_query: Query<(&mut Scoreboard, &mut Text)>, 
     mut squirrel_query: Query<(&Squirrel, &mut Translation, &Sprite)>,
-    mut dog_query: Query<(&mut Timer, &Dog, &mut Translation, &Sprite)>,
-    mut collider_query: Query<(Entity, &Collider, &Translation, &Sprite)>
+    mut dog_query: Query<(&Dog, &mut Translation, &Sprite)>,
+    mut collider_query: Query<(Entity, &Collider, &Translation, &Sprite)>,
 ) {
     let mut existing_things: Vec<Thing> = vec![];
     for (_, collider, collider_translation, collider_sprite) in &mut collider_query.iter() {
@@ -299,43 +284,6 @@ fn interactions_system(
                     size: collider_sprite.size
                 }
             );
-        }
-    }
-
-    let mut rng = rand::thread_rng();
-    let direction_distribution = Uniform::from(-1.0..1.0);
-    for (timer, dog, mut dog_translation, dog_sprite) in &mut dog_query.iter() {
-        if timer.finished {
-            let mut new_x_position;
-            let mut new_y_position;
-            let mut tries = 5;
-            while tries > 0 {
-                let x_direction = direction_distribution.sample(&mut rng);
-                new_x_position = get_new_dog_position(
-                    *dog_translation.0.x_mut(),
-                    x_direction,
-                    dog.speed,
-                    X_MIN,
-                    X_MAX
-                );
-
-                let y_direction = direction_distribution.sample(&mut rng);
-                new_y_position = get_new_dog_position(
-                    *dog_translation.0.y_mut(),
-                    y_direction,
-                    dog.speed,
-                    Y_MIN,
-                    Y_MAX
-                );
-
-                if !collides_with_existing_entity(Vec3::new(new_x_position, new_y_position, 0.), dog_sprite.size, &existing_things) {
-                    *dog_translation.0.x_mut() = new_x_position;
-                    *dog_translation.0.y_mut() = new_y_position;
-                    break;
-                } 
-
-                tries -= 1;
-            }
         }
     }
 
@@ -357,28 +305,46 @@ fn interactions_system(
                         }
                     }
                     commands.despawn(collider_entity);
-                }          
-                
-                if let Collider::Enemy = *collider {
-                    for (_, mut text) in &mut scoreboard_query.iter() {
+                } else if let Collider::Home = *collider {
+                    for (scoreboard, mut text) in &mut scoreboard_query.iter() {
                         unsafe {
-                            if !TRIGGERED {
-                                text.value = "YOU LOSE :(".to_string();
+                            if scoreboard.score >= NUM_ACORNS && !TRIGGERED {
+                                text.value = "SQUIRREL WINS".to_string();
                                 TRIGGERED = true;
-                                WIN = false;
                             }
                         }
                     }
-                }
+                }       
+                
                 break;
             }
         }
 
+        for (_, dog_translation, dog_sprite) in &mut dog_query.iter() {
+            let collision = collide(
+                squirrel_translation.0, squirrel_sprite.size, 
+                dog_translation.0, dog_sprite.size
+            );
+
+            if let Some(_) = collision {       
+                for (_, mut text) in &mut scoreboard_query.iter() {
+                    unsafe {
+                        if !TRIGGERED {
+                            text.value = "DOG WINS".to_string();
+                            TRIGGERED = true;
+                        }
+                    }
+                }
+            }
+
+            break;
+        }
+
         let mut x_direction = 0.0;
-        if keyboard_input.pressed(KeyCode::Left) {
+        if keyboard_input.pressed(KeyCode::A) {
             x_direction -= 1.0;
         }
-        if keyboard_input.pressed(KeyCode::Right) {
+        if keyboard_input.pressed(KeyCode::D) {
             x_direction += 1.0;
         }
         let new_x_position = get_new_squirrel_position(
@@ -388,10 +354,10 @@ fn interactions_system(
         );
 
         let mut y_direction = 0.0;
-        if keyboard_input.pressed(KeyCode::Down) {
+        if keyboard_input.pressed(KeyCode::S) {
             y_direction -= 1.0;
         }
-        if keyboard_input.pressed(KeyCode::Up) {
+        if keyboard_input.pressed(KeyCode::W) {
             y_direction += 1.0;
         }
         let new_y_position = get_new_squirrel_position(
@@ -408,36 +374,41 @@ fn interactions_system(
         *squirrel_translation.0.y_mut() = new_y_position;
     }
 
-    for (scoreboard, mut text) in &mut scoreboard_query.iter() {
-        if scoreboard.score == NUM_ACORNS {
-            unsafe {
-                if !TRIGGERED {
-                    text.value = "YOU WIN!".to_string();
-                    TRIGGERED = true;
-                    WIN = true;
-                }
-            }
+    for (dog, mut dog_translation, dog_sprite) in &mut dog_query.iter() {
+        let mut x_direction = 0.0;
+        if keyboard_input.pressed(KeyCode::Left) {
+            x_direction -= 1.0;
         }
+        if keyboard_input.pressed(KeyCode::Right) {
+            x_direction += 1.0;
+        }
+        let new_x_position = get_new_squirrel_position(
+            *dog_translation.0.x_mut(),
+            time.delta_seconds, x_direction, dog.speed,
+            X_MIN, X_MAX
+        );
+
+        let mut y_direction = 0.0;
+        if keyboard_input.pressed(KeyCode::Down) {
+            y_direction -= 1.0;
+        }
+        if keyboard_input.pressed(KeyCode::Up) {
+            y_direction += 1.0;
+        }
+        let new_y_position = get_new_squirrel_position(
+            *dog_translation.0.y_mut(),
+            time.delta_seconds, y_direction, dog.speed,
+            Y_MIN, Y_MAX
+        );
+
+        if collides_with_existing_entity(Vec3::new(new_x_position, new_y_position, 0.), dog_sprite.size, &existing_things) {
+            continue;
+        }
+
+        *dog_translation.0.x_mut() = new_x_position;
+        *dog_translation.0.y_mut() = new_y_position;
     }
 }
-
-fn get_new_dog_position(
-    current_position: f32,
-    direction: f32, 
-    speed: f32,
-    min_bound: f32,
-    max_bound: f32,
-) -> f32 {
-    let new_position = current_position + direction * speed;
-
-    let thickness = DOG_THICKNESS + WALL_THICKNESS;
-    if new_position >= (max_bound - thickness/2.) || new_position <= (min_bound + thickness/2.) {
-        return current_position;
-    } else {
-        return new_position;
-    }
-}
-
 
 fn get_new_squirrel_position(
     current_position: f32,
@@ -449,7 +420,7 @@ fn get_new_squirrel_position(
 ) -> f32 {
     let new_position = current_position + delta_time * direction * speed;
 
-    let thickness = SQUIRREL_THICKNESS + WALL_THICKNESS;
+    let thickness = SQUIRREL_SIZE + WALL_THICKNESS;
     if new_position >= (max_bound - thickness/2.) || new_position <= (min_bound + thickness/2.) {
         return current_position;
     } else {
