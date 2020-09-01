@@ -7,13 +7,13 @@ use bevy_window::WindowMode;
 use rand::distributions::{Distribution, Uniform};
 
 // Colors
-const GRASS: Color = Color::rgb(128./255., 191./255., 128./255.);
-const TEXT: Color = Color::rgb(128./255., 107./255., 3./255.);
-const BUSH: Color = Color::rgb(3./255., 128./255., 78./255.);
+const GRASS: Color = Color::rgb(101./255., 191./255., 98./255.);
+const TEXT: Color = Color::rgb(56./255., 41./255., 3./255.);
+const BUSH: Color = Color::rgb(13./255., 117./255., 34./255.);
 
 // Bounds
-const WIDTH: f32 = 2000.;
-const HEIGHT: f32 = 1200.;
+const WIDTH: f32 = 3000.;
+const HEIGHT: f32 = 1600.;
 const X_MIN: f32 = -WIDTH/2.;
 const X_MAX: f32= WIDTH/2.;
 const Y_MIN: f32 = -HEIGHT/2.;
@@ -21,7 +21,7 @@ const Y_MAX: f32= HEIGHT/2.;
 
 // Sizes
 const WALL_SIZE: f32 = 100.0;
-const SQUIRREL_SIZE: f32 = 48.0;
+const SQUIRREL_WIDTH: f32 = 38.0;
 const DOG_SIZE: f32 = 48.0;
 const ACORN_SIZE: f32 = 20.0;
 const HOME_WIDTH: f32 = 80.;
@@ -110,7 +110,7 @@ fn setup(
     commands
         .spawn(SpriteComponents {
             material: materials.add(asset_server.load("assets/textures/squirrel.png").unwrap().into()),
-            translation: Translation::new(X_MIN + WALL_SIZE + SQUIRREL_SIZE, HOME_HEIGHT, 0.0),
+            translation: Translation::new(X_MIN + WALL_SIZE + SQUIRREL_WIDTH, HOME_HEIGHT, 0.0),
             ..Default::default()
         })
         .with(Squirrel{ speed: 500.0 });
@@ -137,11 +137,11 @@ fn setup(
     commands
         .spawn(TextComponents {
             text: Text {
-                font: asset_server.load("assets/fonts/FiraSans-Bold.ttf").unwrap(),
+                font: asset_server.load("assets/fonts/raidercrusader.ttf").unwrap(),
                 value: "ACORN".to_string(),
                 style: TextStyle {
                     color: TEXT,
-                    font_size: 50.0,
+                    font_size: 100.0,
                 },
             },
             style: Style {
@@ -160,11 +160,11 @@ fn setup(
     commands
         .spawn(TextComponents {
             text: Text {
-                font: asset_server.load("assets/fonts/FiraSans-Bold.ttf").unwrap(),
-                value: "Score: 0".to_string(),
+                font: asset_server.load("assets/fonts/raidercrusader.ttf").unwrap(),
+                value: "SCORE: 0".to_string(),
                 style: TextStyle {
                     color: TEXT,
-                    font_size: 50.0,
+                    font_size: 100.0,
                 },
             },
             style: Style {
@@ -231,16 +231,13 @@ fn setup(
     let start = X_MIN + 2. * WALL_SIZE;
     for barrier_index in 0..barrier_columns {
         let x = start + (barrier_index as f32 * 2. + 1.) * WALL_SIZE;
-        let mut y = Y_MIN + WALL_SIZE / 2.;
-        while y < Y_MAX {
+        let mut y = Y_MIN + WALL_SIZE;
+        while y < Y_MAX - WALL_SIZE {
             if barrier_distribution.sample(&mut rng) == 1 {
                 commands
                     .spawn(SpriteComponents {
-                        material: wall_material,
+                        material: materials.add(asset_server.load("assets/textures/wall.png").unwrap().into()),
                         translation: Translation(Vec3::new(x, y, 0.0)),
-                        sprite: Sprite {
-                            size: Vec2::new(WALL_SIZE, WALL_SIZE),
-                        },
                         ..Default::default()
                     })
                     .with(Collider::Solid);
@@ -251,7 +248,7 @@ fn setup(
     }
 
     // Acorns
-    let acorn_distribution = Uniform::from(1..5);
+    let acorn_distribution = Uniform::from(1..10);
     let acorn_columns = barrier_columns - 1;
     for acorn_index in 0..acorn_columns {
         let x = start + (acorn_index as f32 * 2. + 2.) * WALL_SIZE;
@@ -307,7 +304,7 @@ fn interactions_system(
                         unsafe {
                             if !TRIGGERED {
                                 scoreboard.score += 1;
-                                text.value = format!("Score: {}", scoreboard.score);
+                                text.value = format!("SCORE: {}", scoreboard.score);
                             }
                         }
                     }
