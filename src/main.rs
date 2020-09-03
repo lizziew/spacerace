@@ -103,6 +103,7 @@ fn setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    audio_output: Res<AudioOutput>,
 ) {
     // Cameras
     commands
@@ -270,6 +271,12 @@ fn setup(
             y += WALL_SIZE;
         }
     }
+
+    // Music
+    let music = asset_server
+        .load("assets/sounds/mii.mp3")
+        .unwrap();
+    audio_output.play(music);
 }
 
 fn interactions_system(
