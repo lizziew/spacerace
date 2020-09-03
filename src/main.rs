@@ -7,9 +7,9 @@ use bevy_window::WindowMode;
 use rand::distributions::{Distribution, Uniform};
 
 // Colors
-const GRASS: Color = Color::rgb(101./255., 191./255., 98./255.);
+const GRASS: Color = Color::rgb(192./255., 117./255., 217./255.);
 const TEXT: Color = Color::rgb(56./255., 41./255., 3./255.);
-const BUSH: Color = Color::rgb(13./255., 117./255., 34./255.);
+const BUSH: Color = Color::rgb(37./255., 3./255., 82./255.);
 
 // Bounds
 const WIDTH: f32 = 3000.;
@@ -21,11 +21,10 @@ const Y_MAX: f32= HEIGHT/2.;
 
 // Sizes
 const WALL_SIZE: f32 = 100.0;
-const SQUIRREL_WIDTH: f32 = 38.0;
-const DOG_SIZE: f32 = 48.0;
-const ACORN_SIZE: f32 = 20.0;
-const HOME_WIDTH: f32 = 80.;
-const HOME_HEIGHT: f32 = 100.;
+const SQUIRREL_SIZE: f32 = 40.0;
+const DOG_SIZE: f32 = 60.0;
+const ACORN_SIZE: f32 = 25.0;
+const HOME_SIZE: f32 = 100.0;
 
 // Win/lose
 const NUM_ACORNS: u32 = 5;
@@ -34,7 +33,7 @@ static mut TRIGGERED: bool = false;
 fn main() {
     App::build()
         .add_resource(WindowDescriptor {
-            title: "acorn".to_string(),
+            title: "SPACE RACE".to_string(),
             width: WIDTH as u32 + WALL_SIZE as u32,
             height: HEIGHT as u32 + WALL_SIZE as u32,
             vsync: true,
@@ -109,8 +108,8 @@ fn setup(
     // Squirrel
     commands
         .spawn(SpriteComponents {
-            material: materials.add(asset_server.load("assets/textures/squirrel.png").unwrap().into()),
-            translation: Translation::new(X_MIN + WALL_SIZE + SQUIRREL_WIDTH, HOME_HEIGHT, 0.0),
+            material: materials.add(asset_server.load("assets/textures/astronaut.png").unwrap().into()),
+            translation: Translation::new(X_MIN + WALL_SIZE + SQUIRREL_SIZE, HOME_SIZE, 0.0),
             ..Default::default()
         })
         .with(Squirrel{ speed: 500.0 });
@@ -118,7 +117,7 @@ fn setup(
     // Dog
     commands
         .spawn(SpriteComponents {
-            material: materials.add(asset_server.load("assets/textures/dog.png").unwrap().into()),
+            material: materials.add(asset_server.load("assets/textures/alien.png").unwrap().into()),
             translation: Translation::new(X_MAX - WALL_SIZE - DOG_SIZE, 0.0, 0.0),
             ..Default::default()
         })
@@ -127,8 +126,8 @@ fn setup(
     // Squirrel home
     commands
         .spawn(SpriteComponents {
-            material: materials.add(asset_server.load("assets/textures/home.png").unwrap().into()),
-            translation: Translation::new(X_MIN + WALL_SIZE + HOME_WIDTH, 0.0, 0.0),
+            material: materials.add(asset_server.load("assets/textures/spaceship.png").unwrap().into()),
+            translation: Translation::new(X_MIN + WALL_SIZE + HOME_SIZE, 0.0, 0.0),
             ..Default::default()
         })
         .with(Collider::Home);
@@ -138,7 +137,7 @@ fn setup(
         .spawn(TextComponents {
             text: Text {
                 font: asset_server.load("assets/fonts/raidercrusader.ttf").unwrap(),
-                value: "ACORN".to_string(),
+                value: "SPACE RACE".to_string(),
                 style: TextStyle {
                     color: TEXT,
                     font_size: 100.0,
@@ -256,7 +255,7 @@ fn setup(
         while y < Y_MAX - WALL_SIZE {
             if acorn_distribution.sample(&mut rng) == 1 {
                 commands.spawn(SpriteComponents{
-                    material: materials.add(asset_server.load("assets/textures/acorn.png").unwrap().into()),
+                    material: materials.add(asset_server.load("assets/textures/jewel.png").unwrap().into()),
                     translation: Translation(Vec3::new(x, y, 0.0)),
                     sprite: Sprite { size: Vec2::new(ACORN_SIZE, ACORN_SIZE) },
                     ..Default::default() 
@@ -314,7 +313,7 @@ fn interactions_system(
                     for (scoreboard, mut text) in &mut scoreboard_query.iter() {
                         unsafe {
                             if scoreboard.score >= NUM_ACORNS && !TRIGGERED {
-                                text.value = "SQUIRREL WINS".to_string();
+                                text.value = "ASTRONAUT WINS".to_string();
                                 TRIGGERED = true;
                             }
                         }
@@ -336,7 +335,7 @@ fn interactions_system(
                 for (_, mut text) in &mut scoreboard_query.iter() {
                     unsafe {
                         if !TRIGGERED {
-                            text.value = "DOG WINS".to_string();
+                            text.value = "ALIEN WINS".to_string();
                             TRIGGERED = true;
                         }
                     }
