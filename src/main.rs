@@ -1,7 +1,6 @@
 use bevy::{
     prelude::*,
     render::pass::ClearColor,
-    sprite::collide_aabb::collide,
 };
 use bevy_window::WindowMode;
 use rand::distributions::{Distribution, Uniform};
@@ -47,6 +46,11 @@ fn main() {
         .add_startup_system(setup.system())
         .add_system(interactions_system.system())
         .run();
+}
+
+pub struct Collision {
+    x_depth: f32,
+    y_depth: f32,
 }
 
 struct Object {
@@ -409,9 +413,56 @@ fn update_position(
         Y_MIN, Y_MAX
     );
 
-    if !collides_with_objects(Vec3::new(new_x_position, new_y_position, 0.), sprite.size, &objects) {
+    let collision = collides_with_objects(Vec3::new(new_x_position, new_y_position, 0.), sprite.size, &objects);
+    if let Some(c) = collision { 
+        *translation.0.x_mut() = new_x_position - c.x_depth;
+        *translation.0.y_mut() = new_y_position - c.y_depth;
+    } else {
         *translation.0.x_mut() = new_x_position;
         *translation.0.y_mut() = new_y_position;
+    }
+}
+
+pub fn collide(a_pos: Vec3, a_size: Vec2, b_pos: Vec3, b_size: Vec2) -> Option<Collision> {
+    let a_min = a_pos.truncate() - a_size / 2.0;
+    let a_max = a_pos.truncate() + a_size / 2.0;
+
+    let b_min = b_pos.truncate() - b_size / 2.0;
+    let b_max = b_pos.truncate() + b_size / 2.0;
+
+    // check to see if the two rectangles are intersecting
+    if a_min.x() < b_max.x()
+        && a_max.x() > b_min.x()
+        && a_min.y() < b_max.y()
+        && a_max.y() > b_min.y()
+    {
+        // check to see if we hit on the left or right side
+        let (x_collision, x_depth) =
+            if a_min.x() < b_min.x() && a_max.x() > b_min.x() && a_max.x() < b_max.x() {
+                (true, a_max.x() - b_min.x())
+            } else if a_min.x() > b_min.x() && a_min.x() < b_max.x() && a_max.x() > b_max.x() {
+                (true, a_min.x() - b_max.x())
+            } else {
+                (false, 0.0)
+            };
+
+        // check to see if we hit on the top or bottom side
+        let (y_collision, y_depth) =
+            if a_min.y() < b_min.y() && a_max.y() > b_min.y() && a_max.y() < b_max.y() {
+                (true, a_max.y() - b_min.y())
+            } else if a_min.y() > b_min.y() && a_min.y() < b_max.y() && a_max.y() > b_max.y() {
+                (true, a_min.y() - b_max.y())
+            } else {
+                (false, 0.0)
+            };
+
+        if !x_collision && !y_collision {
+            return None;
+        }
+
+        return Some(Collision{ x_depth, y_depth });
+    } else {
+        None
     }
 }
 
@@ -419,17 +470,17 @@ fn collides_with_objects(
     position: Vec3<>,
     size: Vec2<>,
     objects: &Vec<Object>
-) -> bool {
+) -> Option<Collision> {
     for object in objects {
         let collision = collide(
             position, size,
             object.position, object.size
         );
         if let Some(_) = collision {
-            return true;
+            return collision;
         }
     }
-    return false;
+    return None;
 }
 
 fn get_new_player_position(
