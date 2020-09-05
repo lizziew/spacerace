@@ -4,6 +4,7 @@ use bevy::{
 };
 use bevy_window::WindowMode;
 use rand::distributions::{Distribution, Uniform};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 // Colors
 const CAVE_COLOR: Color = Color::rgb(192./255., 117./255., 217./255.);
@@ -27,7 +28,7 @@ const BASE_SIZE: f32 = 100.0;
 
 // Win/lose
 const NUM_JEWELS: u32 = 5;
-static mut GAME_FINISHED: bool = false;
+static GAME_FINISHED: AtomicBool = AtomicBool::new(false);
 
 fn main() {
     App::build()
@@ -313,22 +314,18 @@ fn interactions_system(
                 if let Collider::Scorable = *collider {
                     // Astronaut collides with jewel
                     for (mut scoreboard, mut text) in &mut scoreboard_query.iter() {
-                        unsafe {
-                            if !GAME_FINISHED {
-                                scoreboard.score += 1;
-                                text.value = format!("SCORE: {}", scoreboard.score);
-                            }
+                        if !GAME_FINISHED.load(Ordering::Relaxed) {
+                            scoreboard.score += 1;
+                            text.value = format!("SCORE: {}", scoreboard.score);
                         }
                     }
                     commands.despawn(collider_entity);
                 } else if let Collider::Home = *collider {
                     // Astronaut collides with home base
                     for (scoreboard, mut text) in &mut scoreboard_query.iter() {
-                        unsafe {
-                            if scoreboard.score >= NUM_JEWELS && !GAME_FINISHED {
-                                text.value = "ASTRONAUT WINS".to_string();
-                                GAME_FINISHED = true;
-                            }
+                        if scoreboard.score >= NUM_JEWELS && !GAME_FINISHED.load(Ordering::Relaxed) {
+                            text.value = "ASTRONAUT WINS".to_string();
+                            GAME_FINISHED.store(true, Ordering::Relaxed)
                         }
                     }
                 }       
@@ -346,11 +343,9 @@ fn interactions_system(
 
             if let Some(_) = collision {       
                 for (_, mut text) in &mut scoreboard_query.iter() {
-                    unsafe {
-                        if !GAME_FINISHED {
-                            text.value = "ALIEN WINS".to_string();
-                            GAME_FINISHED = true;
-                        }
+                    if !GAME_FINISHED.load(Ordering::Relaxed) {
+                        text.value = "ALIEN WINS".to_string();
+                        GAME_FINISHED.store(true, Ordering::Relaxed)
                     }
                 }
             }
