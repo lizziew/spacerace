@@ -6,9 +6,9 @@ use bevy_window::WindowMode;
 use rand::distributions::{Distribution, Uniform};
 
 // Colors
-const GRASS: Color = Color::rgb(192./255., 117./255., 217./255.);
-const TEXT: Color = Color::rgb(56./255., 41./255., 3./255.);
-const BUSH: Color = Color::rgb(37./255., 3./255., 82./255.);
+const CAVE_COLOR: Color = Color::rgb(192./255., 117./255., 217./255.);
+const TEXT_COLOR: Color = Color::rgb(56./255., 41./255., 3./255.);
+const WALL_COLOR: Color = Color::rgb(37./255., 3./255., 82./255.);
 
 // Bounds
 const WIDTH: f32 = 3000.;
@@ -20,14 +20,14 @@ const Y_MAX: f32= HEIGHT/2.;
 
 // Sizes
 const WALL_SIZE: f32 = 100.0;
-const SQUIRREL_SIZE: f32 = 40.0;
-const DOG_SIZE: f32 = 60.0;
-const ACORN_SIZE: f32 = 25.0;
-const HOME_SIZE: f32 = 100.0;
+const ASTRONAUT_SIZE: f32 = 40.0;
+const ALIEN_SIZE: f32 = 60.0;
+const JEWEL_SIZE: f32 = 25.0;
+const BASE_SIZE: f32 = 100.0;
 
 // Win/lose
-const NUM_ACORNS: u32 = 5;
-static mut TRIGGERED: bool = false;
+const NUM_JEWELS: u32 = 5;
+static mut GAME_FINISHED: bool = false;
 
 fn main() {
     App::build()
@@ -42,7 +42,7 @@ fn main() {
         })
         .add_default_plugins()
         .add_resource(Scoreboard { score: 0 })
-        .add_resource(ClearColor(GRASS))
+        .add_resource(ClearColor(CAVE_COLOR))
         .add_startup_system(setup.system())
         .add_system(interactions_system.system())
         .run();
@@ -71,13 +71,13 @@ trait Player {
     fn new(speed: f32) -> Self;
     fn speed(&self) -> f32;
 }
-struct Dog {
+struct Alien {
     speed: f32,
 }
 
-impl Player for Dog {
-    fn new(speed: f32) -> Dog {
-        Dog { speed }
+impl Player for Alien {
+    fn new(speed: f32) -> Alien {
+        Alien { speed }
     }
 
     fn speed(&self) -> f32 {
@@ -85,13 +85,13 @@ impl Player for Dog {
     }
 }
 
-struct Squirrel {
+struct Astronaut {
     speed: f32,
 }
 
-impl Player for Squirrel {
-    fn new(speed: f32) -> Squirrel {
-        Squirrel { speed }
+impl Player for Astronaut {
+    fn new(speed: f32) -> Astronaut {
+        Astronaut { speed }
     }
 
     fn speed(&self) -> f32 {
@@ -110,29 +110,29 @@ fn setup(
         .spawn(Camera2dComponents::default())
         .spawn(UiCameraComponents::default());
 
-    // Squirrel
+    // Astronaut
     commands
         .spawn(SpriteComponents {
             material: materials.add(asset_server.load("assets/textures/astronaut.png").unwrap().into()),
-            translation: Translation::new(X_MIN + WALL_SIZE + SQUIRREL_SIZE, HOME_SIZE, 0.0),
+            translation: Translation::new(X_MIN + WALL_SIZE + ASTRONAUT_SIZE, BASE_SIZE, 0.0),
             ..Default::default()
         })
-        .with(Squirrel{ speed: 500.0 });
+        .with(Astronaut{ speed: 500.0 });
 
-    // Dog
+    // Alien
     commands
         .spawn(SpriteComponents {
             material: materials.add(asset_server.load("assets/textures/alien.png").unwrap().into()),
-            translation: Translation::new(X_MAX - WALL_SIZE - DOG_SIZE, 0.0, 0.0),
+            translation: Translation::new(X_MAX - WALL_SIZE - ALIEN_SIZE, 0.0, 0.0),
             ..Default::default()
         })
-        .with(Dog{ speed: 500.0 });
+        .with(Alien{ speed: 500.0 });
 
-    // Squirrel home
+    // Home base
     commands
         .spawn(SpriteComponents {
             material: materials.add(asset_server.load("assets/textures/spaceship.png").unwrap().into()),
-            translation: Translation::new(X_MIN + WALL_SIZE + HOME_SIZE, 0.0, 0.0),
+            translation: Translation::new(X_MIN + WALL_SIZE + BASE_SIZE, 0.0, 0.0),
             ..Default::default()
         })
         .with(Collider::Home);
@@ -144,7 +144,7 @@ fn setup(
                 font: asset_server.load("assets/fonts/raidercrusader.ttf").unwrap(),
                 value: "SPACE RACE".to_string(),
                 style: TextStyle {
-                    color: TEXT,
+                    color: TEXT_COLOR,
                     font_size: 100.0,
                 },
             },
@@ -167,7 +167,7 @@ fn setup(
                 font: asset_server.load("assets/fonts/raidercrusader.ttf").unwrap(),
                 value: "SCORE: 0".to_string(),
                 style: TextStyle {
-                    color: TEXT,
+                    color: TEXT_COLOR,
                     font_size: 100.0,
                 },
             },
@@ -185,7 +185,7 @@ fn setup(
         .with(Scoreboard{ score: 0 });
 
     // Walls
-    let wall_material = materials.add(BUSH.into());
+    let wall_material = materials.add(WALL_COLOR.into());
     commands
     // left
     .spawn(SpriteComponents {
@@ -251,18 +251,18 @@ fn setup(
         }
     }
 
-    // Acorns
-    let acorn_distribution = Uniform::from(1..10);
-    let acorn_columns = barrier_columns - 1;
-    for acorn_index in 0..acorn_columns {
-        let x = start + (acorn_index as f32 * 2. + 2.) * WALL_SIZE;
+    // Jewels
+    let jewel_distribution = Uniform::from(1..10);
+    let jewel_columns = barrier_columns - 1;
+    for jewel_index in 0..jewel_columns {
+        let x = start + (jewel_index as f32 * 2. + 2.) * WALL_SIZE;
         let mut y = Y_MIN + WALL_SIZE;
         while y < Y_MAX - WALL_SIZE {
-            if acorn_distribution.sample(&mut rng) == 1 {
+            if jewel_distribution.sample(&mut rng) == 1 {
                 commands.spawn(SpriteComponents{
                     material: materials.add(asset_server.load("assets/textures/jewel.png").unwrap().into()),
                     translation: Translation(Vec3::new(x, y, 0.0)),
-                    sprite: Sprite { size: Vec2::new(ACORN_SIZE, ACORN_SIZE) },
+                    sprite: Sprite { size: Vec2::new(JEWEL_SIZE, JEWEL_SIZE) },
                     ..Default::default() 
                 })
                 .with(Collider::Scorable);
@@ -284,10 +284,11 @@ fn interactions_system(
     time: Res<Time>, 
     keyboard_input: Res<Input<KeyCode>>, 
     mut scoreboard_query: Query<(&mut Scoreboard, &mut Text)>, 
-    mut squirrel_query: Query<(&Squirrel, &mut Translation, &Sprite)>,
-    mut dog_query: Query<(&Dog, &mut Translation, &Sprite)>,
+    mut astronaut_query: Query<(&Astronaut, &mut Translation, &Sprite)>,
+    mut alien_query: Query<(&Alien, &mut Translation, &Sprite)>,
     mut collider_query: Query<(Entity, &Collider, &Translation, &Sprite)>,
 ) {
+    // Get all solid collider objects 
     let mut objects: Vec<Object> = vec![];
     for (_, collider, collider_translation, collider_sprite) in &mut collider_query.iter() {
         if let Collider::Solid = *collider { 
@@ -300,19 +301,20 @@ fn interactions_system(
         }
     }
 
-    for (squirrel, mut squirrel_translation, squirrel_sprite) in &mut squirrel_query.iter() {
+    for (astronaut, mut astronaut_translation, astronaut_sprite) in &mut astronaut_query.iter() {
         for (collider_entity, collider, collider_translation, collider_sprite) in &mut collider_query.iter() {
+            // Check if astronaut collides with a collider object
             let collision = collide(
-                squirrel_translation.0, squirrel_sprite.size, 
+                astronaut_translation.0, astronaut_sprite.size, 
                 collider_translation.0, collider_sprite.size
             );
 
             if let Some(_) = collision {
                 if let Collider::Scorable = *collider {
-                    // Squirrel collides with acorn
+                    // Astronaut collides with jewel
                     for (mut scoreboard, mut text) in &mut scoreboard_query.iter() {
                         unsafe {
-                            if !TRIGGERED {
+                            if !GAME_FINISHED {
                                 scoreboard.score += 1;
                                 text.value = format!("SCORE: {}", scoreboard.score);
                             }
@@ -320,12 +322,12 @@ fn interactions_system(
                     }
                     commands.despawn(collider_entity);
                 } else if let Collider::Home = *collider {
-                    // Squirrel collides with home
+                    // Astronaut collides with home base
                     for (scoreboard, mut text) in &mut scoreboard_query.iter() {
                         unsafe {
-                            if scoreboard.score >= NUM_ACORNS && !TRIGGERED {
+                            if scoreboard.score >= NUM_JEWELS && !GAME_FINISHED {
                                 text.value = "ASTRONAUT WINS".to_string();
-                                TRIGGERED = true;
+                                GAME_FINISHED = true;
                             }
                         }
                     }
@@ -335,19 +337,19 @@ fn interactions_system(
             }
         }
 
-        // Squirrel collides with dog
-        for (_, dog_translation, dog_sprite) in &mut dog_query.iter() {
+        // Astronaut collides with alien
+        for (_, alien_translation, alien_sprite) in &mut alien_query.iter() {
             let collision = collide(
-                squirrel_translation.0, squirrel_sprite.size, 
-                dog_translation.0, dog_sprite.size
+                astronaut_translation.0, astronaut_sprite.size, 
+                alien_translation.0, alien_sprite.size
             );
 
             if let Some(_) = collision {       
                 for (_, mut text) in &mut scoreboard_query.iter() {
                     unsafe {
-                        if !TRIGGERED {
+                        if !GAME_FINISHED {
                             text.value = "ALIEN WINS".to_string();
-                            TRIGGERED = true;
+                            GAME_FINISHED = true;
                         }
                     }
                 }
@@ -356,25 +358,25 @@ fn interactions_system(
             break;
         }
 
-        // Move squirrel
+        // Move astronaut
         update_position(
             &time,
-            &mut squirrel_translation,
-            squirrel,
-            squirrel_sprite,
+            &mut astronaut_translation,
+            astronaut,
+            astronaut_sprite,
             &objects,
             &keyboard_input,
             KeyCode::A, KeyCode::D, KeyCode::S, KeyCode::W
         )
     }
 
-    for (dog, mut dog_translation, dog_sprite) in &mut dog_query.iter() {
-        // Move dog
+    for (alien, mut alien_translation, alien_sprite) in &mut alien_query.iter() {
+        // Move alien
         update_position(
             &time,
-            &mut dog_translation,
-            dog,
-            dog_sprite,
+            &mut alien_translation,
+            alien,
+            alien_sprite,
             &objects,
             &keyboard_input,
             KeyCode::Left, KeyCode::Right, KeyCode::Down, KeyCode::Up
