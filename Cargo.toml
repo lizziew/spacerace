@@ -1,5 +1,5 @@
 [package]
-name = "acorn"
+name = "spacerace"
 version = "0.1.0"
 authors = ["Elizabeth Wei <elizabeth.m.wei@gmail.com>"]
 edition = "2018"
